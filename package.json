@@ -21,7 +21,8 @@
     "js-combinatorics": "^0.5.1",
     "jsonwebtoken": "^6.2.0",
     "neo4j-simple": "^0.8.0",
-    "vision": "^4.1.0"
+    "vision": "^4.1.0",
+    "winston": "^2.2.0"
   },
   "devDependencies": {},
   "scripts": {

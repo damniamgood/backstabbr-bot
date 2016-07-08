@@ -1,5 +1,8 @@
 'use strict';
 
+global.logger = require('./lib/utils/logger');
+logger.level = process.env.LOG_LEVEL || 'info';
+
 import assert from 'assert';
 var helpers = require('./lib/helpers/helpers');
 import combinatorics from 'js-combinatorics';
@@ -22,7 +25,7 @@ var webhooks = require(`./lib/controllers/webhooks`);
 s.register(require('hapi-auth-jwt2'), function (err) {
 
   if(err){
-    console.log(err);
+    logger.error(err);
   }
 
   s.auth.strategy('jwt', 'jwt',
@@ -47,7 +50,7 @@ s.register(require('hapi-auth-jwt2'), function (err) {
 s.register(require('vision'), function (err) {
 
   if(err) {
-    console.log(err)
+    logger.error(err)
   }
 
   s.views({
@@ -92,7 +95,7 @@ s.start((err) => {
   if (err) {
     throw err;
   }
-  console.log('Server running at:', s.info.uri);
+  logger.info('Server running at:', s.info.uri);
 });
 
 s.route({
@@ -142,11 +145,11 @@ async function createRoom(title){
     assert(room.id);
     assert(room.title);
     assert(room.created);
-    console.log(`Trying to create webhook for ${room.title}`);
+    logger.debug(`Trying to create webhook for ${room.title}`);
     await createWebhook(room.id, title);
   }
   catch(reason) {
-    console.log("Failure: " + reason)
+    logger.error("Failure: " + reason)
   }
 };
 
@@ -185,7 +188,7 @@ async function webhook(data) {
       assert(message.created);
     }
     catch(reason) {
-      console.log(`Failed to respond to webhook: ${reason}`);
+      logger.error(`Failed to respond to webhook: ${reason}`);
     }
   }
 };
@@ -256,7 +259,7 @@ s.route({
   method: 'POST',
   path: '/webhook',
   handler: function(request, reply) {
-    console.log(request.payload);
+    logger.debug(`DEBUG: (/webhook) payload: ${JSON.stringify(request.payload)}`);
     webhook(request.payload);
     reply("OK");
   }
@@ -278,7 +281,7 @@ s.route({
   method: 'POST',
   path: '/webhook/{targetRoomId}',
   handler: async function(request, reply) {
-    console.log(request.payload);
+    logger.debug(`DEBUG: (/webhook/{targetRoomId}) payload: ${JSON.stringify(request.payload)}`);
     var msg = await ciscospark.messageFairy(
       request.auth.credentials.spark.authorization,
       request.payload.data.id,
@@ -314,7 +317,7 @@ s.route({
   method: 'POST',
   path: '/rooms/{gameId}/{matchup}',
   handler: async function (request, reply) {
-    console.log(`for ${request.params.matchup}`)
+    logger.debug(`for ${request.params.matchup}`)
     const roomNames = await calcRoomNames(request.params.matchup, request.params.gameId);
     let promises = roomNames.map((room) => ciscospark.rooms.create(room));
 
@@ -322,10 +325,10 @@ s.route({
     for (let promise of promises) {
       rooms.push(await promise);
     }
-    console.log(rooms);
+    logger.debug(rooms);
 
     const webhooks = await calcRoomWebhooks(rooms);
-    console.log(webhooks);
+    logger.debug(webhooks);
 
     let morePromises = webhooks.map((hook) => createWebhook(hook.sourceRoom, hook.title, hook.targetRoom));
 
@@ -333,7 +336,7 @@ s.route({
     for (let promise of morePromises) {
       hooks.push(await promise);
     }
-    console.log(hooks);
+    logger.debug(hooks);
 
     reply(hooks).type('application/json');
   }
@@ -350,7 +353,7 @@ s.route({
     for (let promise of promises) {
       rooms.push(await promise);
     }
-    console.log(rooms);
+    logger.debug(rooms);
 
     reply(rooms).type('application/json');
   }
@@ -395,7 +398,7 @@ async function deleteRoomByName(name) {
       await ciscospark.rooms.remove(room.id);
     }
     catch(reason) {
-      console.log(reason);
+      logger.error(reason);
     }
   }
 }
@@ -408,6 +411,16 @@ s.route({
     description: `Create game { gameId: [gameId], players: {RUS: [player], TUR: [player], ENG: [player], AUS: [player], GER: [player], FRA: [player], ITA: [player]}}`,
     handler: games.create
   }
+})
+
+s.route({
+  method: 'PUT',
+  path: '/games/{gameId}',
+  config: {
+    tags: ['api'],
+    description: 'Update players for game {gameId}. @params: { players: {RUS: [player], TUR: [player], ENG: [player], AUS: [player], GER: [player], FRA: [player], ITA: [player]}}',
+    handler: games.update
+   }
 })
 
 s.route({
@@ -461,7 +474,7 @@ s.route({
   method: 'GET',
   path: '/players',
   handler: async function (request, reply) {
-    console.log(request.query);
+    logger.debug(request.query);
     let output = await players.list(session);
     reply(output);
   }
@@ -477,7 +490,7 @@ s.route({
   method: 'POST',
   path: '/game/{gameId}/player',
   handler: async function (request, reply) {
-    console.log(request.query);
+    logger.debug(request.query);
     let output = await player.addToGame(request.query.name, request.params.gameId, request.query.role, session);
     reply(output);
   }
